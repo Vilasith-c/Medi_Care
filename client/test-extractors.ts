@@ -44,6 +44,15 @@ const testPacks = [
     expectedForm: "Eye/Ear Drops",
     expectedStrength: "0.3% w/v",
     expectedStatus: "ok"
+  },
+  {
+    name: "Vitamin B-Complex with Zinc Foil Blister Strip",
+    ocr: `Vitamin B-Complex\nwith Zinc Tablets\nEach film coated tablet contains:\nThiamine Mononitrate IP 5mg\nRiboflavin IP 5mg\nPyridoxine HCl IP 2mg\nNiacinamide IP 50mg\nZinc Sulphate Monohydrate IP 20mg\nMfg. Lic. No.: 36/RR/AP/2009/F/R\nManufactured in India by: Stride Organics Pvt. Ltd.\nBATCH NO.0388\nMFG.02/2026 EXP.07/2027`,
+    expectedSalt: "Vitamin B-Complex with Zinc",
+    expectedForm: "Tablet",
+    expectedStrength: "5mg",
+    expectedBatch: "0388",
+    expectedStatus: "ok"
   }
 ];
 

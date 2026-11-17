@@ -22,6 +22,18 @@ OFFLINE_ESSENTIAL_SUMMARIES: Dict[str, Dict[str, str]] = {
         "url": "https://medlineplus.gov/druginfo/meds/a682583.html",
         "source": "MedlinePlus Connect (U.S. National Library of Medicine)"
     },
+    "11251": {
+        "title": "Vitamin B Complex",
+        "summary": "Vitamin B complex consists of eight B vitamins (including thiamine, riboflavin, niacin, B6, folate, and B12) that support cellular metabolism, energy production, and red blood cell formation.",
+        "url": "https://medlineplus.gov/bvitamins.html",
+        "source": "MedlinePlus Connect (U.S. National Library of Medicine)"
+    },
+    "39954": {
+        "title": "Zinc Sulfate",
+        "summary": "Zinc is an essential mineral required for cellular immunity, wound healing, protein synthesis, and enzymatic reactions.",
+        "url": "https://medlineplus.gov/minerals.html",
+        "source": "MedlinePlus Connect (U.S. National Library of Medicine)"
+    },
     "723": {
         "title": "Amoxicillin",
         "summary": "Amoxicillin is used to treat certain infections caused by bacteria, such as pneumonia; bronchitis; and infections of the ears, nose, throat, urinary tract, and skin.",

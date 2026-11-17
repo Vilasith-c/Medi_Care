@@ -7,8 +7,16 @@ export interface SaltMatch {
 
 // Canonical salt database with common packaging aliases & abbreviations
 export const KNOWN_SALTS = [
+  { canonical: 'Vitamin B-Complex with Zinc', aliases: ['Vitamin B-Complex with Zinc', 'Vitamin B Complex with Zinc', 'B-Complex with Zinc', 'Vitamin B-Complex Zinc', 'Vitamin B-Compie with Zinc'] },
+  { canonical: 'Vitamin B-Complex', aliases: ['Vitamin B Complex', 'B-Complex', 'B Complex', 'Vitamin B-Compie', 'Vitamin B-Complx'] },
+  { canonical: 'Zinc Sulphate', aliases: ['Zinc Sulfate', 'Zinc Sulphate Monohydrate', 'Zinc Monohydrate'] },
+  { canonical: 'Thiamine', aliases: ['Thiamine Mononitrate', 'Thiamin', 'Vitamin B1'] },
+  { canonical: 'Riboflavin', aliases: ['Riboflavine', 'Vitamin B2'] },
+  { canonical: 'Pyridoxine', aliases: ['Pyridoxine Hydrochloride', 'Pyridoxine HCl', 'Vitamin B6'] },
+  { canonical: 'Niacinamide', aliases: ['Nicotinamide', 'Vitamin B3'] },
+  { canonical: 'Calcium Pantothenate', aliases: ['Pantothenate', 'Vitamin B5'] },
   { canonical: 'Ascorbic Acid', aliases: ['Vitamin C', 'Ascorbate', 'Sodium Ascorbate', 'Ascorbic Acid IP'] },
-  { canonical: 'Paracetamol', aliases: ['Acetaminophen', 'PCM', 'Paracetamol IP', 'Paracetamol BP'] },
+  { canonical: 'Paracetamol', aliases: ['Acetaminophen', 'Paracetamol IP', 'Paracetamol BP', 'Paracetamol Tablets IP'] },
   { canonical: 'Ibuprofen', aliases: ['Ibuprofen IP', 'Brufen', 'Ibuprofen BP'] },
   { canonical: 'Amoxicillin', aliases: ['Amoxycillin', 'Amoxicillin Trihydrate', 'Amoxicillin IP'] },
   { canonical: 'Clavulanic Acid', aliases: ['Potassium Clavulanate', 'Clavulanate Potassium'] },
@@ -82,13 +90,14 @@ export function stringSimilarity(str1: string, str2: string): number {
  */
 export function fuzzyMatchSaltInText(ocrText: string): SaltMatch | null {
   const isIP = /\bIP\b/i.test(ocrText);
-  const normalizedOcr = ocrText.toLowerCase();
+  // Normalize whitespace and linebreaks so multi-line packaging titles (e.g. "Vitamin B-Complex \n with Zinc") match
+  const normalizedOcr = ocrText.toLowerCase().replace(/\s+/g, ' ');
 
   let bestMatch: SaltMatch | null = null;
-  let highestScore = 0.65; // Threshold for acceptance
+  let highestScore = 0.80; // Strict threshold for clinical safety; leaves blank if below
 
   // 1. Direct or fuzzy scan across lines and token sequences
-  const lines = ocrText.split('\n').map(l => l.trim()).filter(l => l.length > 3);
+  const lines = ocrText.split('\n').map(l => l.trim()).filter(l => l.length >= 3);
 
   for (const entry of KNOWN_SALTS) {
     const candidateNames = [entry.canonical, ...entry.aliases];
@@ -97,16 +106,28 @@ export function fuzzyMatchSaltInText(ocrText: string): SaltMatch | null {
       const candLower = cand.toLowerCase();
 
       // Check if candidate appears directly inside the OCR text
-      if (normalizedOcr.includes(candLower)) {
+      if (candLower.length >= 5 && normalizedOcr.includes(candLower)) {
         return {
           canonicalName: entry.canonical,
           matchedFrom: cand,
           confidence: 0.99,
           isIndianPharmacopoeia: isIP
         };
+      } else if (candLower.length < 5) {
+        // Short abbreviations require exact word boundary match to avoid substring false positives
+        const escaped = candLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (new RegExp(`\\b${escaped}\\b`, 'i').test(normalizedOcr)) {
+          return {
+            canonicalName: entry.canonical,
+            matchedFrom: cand,
+            confidence: 0.95,
+            isIndianPharmacopoeia: isIP
+          };
+        }
+        continue;
       }
 
-      // Check fuzzy similarity against each line or n-gram window
+      // Check fuzzy similarity against each line or n-gram window (candidates with length >= 5 only)
       for (const line of lines) {
         const lineLower = line.toLowerCase();
         

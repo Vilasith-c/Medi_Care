@@ -17,6 +17,10 @@ GLOBAL_SYNONYMS: Dict[str, List[str]] = {
     "frusemide": ["furosemide", "frusemide"],
     "furosemide": ["frusemide", "furosemide"],
     "amoxicillin": ["amoxicillin", "amoxil"],
+    "vitamin b-complex with zinc": ["vitamin b complex", "zinc sulfate", "vitamin b"],
+    "vitamin b complex with zinc": ["vitamin b complex", "zinc sulfate", "vitamin b"],
+    "vitamin b-complex": ["vitamin b complex", "vitamin b"],
+    "vitamin b complex": ["vitamin b-complex", "vitamin b"],
 }
 
 # Resilient local cache for essential medicines when US NIH has network/SSL timeouts
@@ -25,6 +29,13 @@ OFFLINE_ESSENTIAL_DRUGS: Dict[str, Tuple[str, str]] = {
     "acetaminophen": ("161", "Acetaminophen"),
     "ascorbic acid": ("1151", "Ascorbic Acid"),
     "vitamin c": ("1151", "Ascorbic Acid"),
+    "vitamin b complex": ("11251", "Vitamin B Complex"),
+    "vitamin b-complex": ("11251", "Vitamin B Complex"),
+    "vitamin b": ("11251", "Vitamin B Complex"),
+    "vitamin b-complex with zinc": ("11251", "Vitamin B Complex with Zinc"),
+    "vitamin b complex with zinc": ("11251", "Vitamin B Complex with Zinc"),
+    "zinc sulfate": ("39954", "Zinc Sulfate"),
+    "zinc sulphate": ("39954", "Zinc Sulfate"),
     "amoxicillin": ("723", "Amoxicillin"),
     "ibuprofen": ("5640", "Ibuprofen"),
     "cetirizine": ("20610", "Cetirizine"),

@@ -105,7 +105,9 @@ export function parseExpiryDate(text: string): { dateStr: string; status: Expiry
 }
 
 export function extractMfgDate(text: string): string {
-  const mfgMatch = text.match(/(?:MFG(?:\.?\s*DATE)?|M\/D)\s*[:.\-]?\s*([0-9A-Za-z/.\-]+)/i);
+  // Specifically look for date pattern (MM/YY or MM/YYYY or MMM YY) following MFG or M/D,
+  // while explicitly ignoring "Mfg. Lic. No." (manufacturing license number)
+  const mfgMatch = text.match(/(?:MFG(?:\.?\s*DATE)?|M\/D)(?!\s*Lic)\s*[:.\-]?\s*([0-9]{1,2}[\/\.-][0-9]{2,4}|[A-Za-z]{3}[\/\s.\-][0-9]{2,4})/i);
   return mfgMatch ? mfgMatch[1].trim() : '';
 }
 
@@ -115,8 +117,18 @@ export function extractBatch(text: string): string {
 }
 
 export function extractManufacturer(text: string): string {
-  const mfgMatch = text.match(/(?:Mfd\.?\s*by|Manufactured\s*by|Marketed\s*by)\s*[:.\-]?\s*([A-Za-z0-9\s.,]+?)(?=\n|Batch|Exp|Lic|$)/i);
-  return mfgMatch ? mfgMatch[1].trim().slice(0, 60) : '';
+  const mfgMatch = text.match(/(?:Mfd\.?\s*(?:in\s+India\s+)?by|Manufactured\s*(?:in\s+India\s+)?by|Marketed\s*by)\s*[:.\-]?\s*([A-Za-z0-9\s.,]+?)(?=\n|Batch|Exp|Lic|Sy\.|Plot|Regd|$)/i);
+  if (mfgMatch) {
+    return mfgMatch[1].replace(/[:,\-]/g, '').trim().slice(0, 60);
+  }
+  // Fallback for lines containing pharmaceutical company keywords
+  const lines = text.split('\n');
+  for (const line of lines) {
+    if (/\b(?:Pharma|Laboratories|Organics|Therapeutics|Remedies|Biotech)\b/i.test(line) && !/keep out|mfg|lic|telangana/i.test(line)) {
+      return line.trim().slice(0, 60);
+    }
+  }
+  return '';
 }
 
 /**
@@ -177,23 +189,37 @@ export function extractAllFields(ocrText: string, ocrConfidence: number, qrData?
     if (qrFields.expiry_status) expiry_status = qrFields.expiry_status;
   }
 
-  // Extract brand name: first capitalized prominent line that isn't instructions or the generic salt
+  // Extract brand name: look for prominent product title
   let brand = '';
-  const lines = ocrText.split('\n').map(l => l.trim()).filter(l => l.length > 2);
-  for (const line of lines) {
-    const lower = line.toLowerCase();
-    if (
-      !lower.includes('keep out') &&
-      !lower.includes('mfg') &&
-      !lower.includes('exp') &&
-      !lower.includes('batch') &&
-      !lower.includes('store') &&
-      !lower.includes('each uncoated') &&
-      !lower.includes('composition') &&
-      line !== generic_name
-    ) {
-      brand = line.replace(/[^a-zA-Z0-9\s]/g, '').trim();
-      break;
+  const vitaminBZincMatch = ocrText.match(/Vitamin\s*B-?Complex(?:\s*with\s*Zinc)?(?:\s*Tablets?)?/i);
+  if (vitaminBZincMatch) {
+    brand = vitaminBZincMatch[0].trim();
+  } else {
+    const lines = ocrText.split('\n').map(l => l.trim()).filter(l => l.length >= 4);
+    for (const line of lines) {
+      const lower = line.toLowerCase();
+      if (
+        !lower.includes('keep out') &&
+        !lower.includes('mfg') &&
+        !lower.includes('exp') &&
+        !lower.includes('batch') &&
+        !lower.includes('store') &&
+        !lower.includes('each uncoated') &&
+        !lower.includes('each film') &&
+        !lower.includes('composition') &&
+        !lower.includes('not for sale') &&
+        !lower.includes('government supply') &&
+        !lower.includes('schedule') &&
+        !lower.includes('telangana') &&
+        !lower.includes('cipients') &&
+        !lower.includes('preservative') &&
+        !lower.includes('manufactured') &&
+        !lower.includes('medchat') &&
+        line !== generic_name
+      ) {
+        brand = line.replace(/[^a-zA-Z0-9\s\-]/g, '').trim();
+        if (brand.length >= 4) break;
+      }
     }
   }
 

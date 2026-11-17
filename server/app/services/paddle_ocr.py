@@ -4,6 +4,11 @@ import numpy as np
 import cv2
 from typing import Dict, Any, List
 
+try:
+    from app.services.image_preprocess import image_preprocess_service
+except ImportError:
+    from server.app.services.image_preprocess import image_preprocess_service
+
 logger = logging.getLogger(__name__)
 
 class PaddleOCRService:
@@ -38,9 +43,13 @@ class PaddleOCRService:
             if img is None:
                 raise ValueError("Could not decode image from provided data.")
 
+            # Step 1: Preprocess with CLAHE in LAB color space to equalize metallic foil glare
+            # and amplify contrast of low-opacity inks (pink, purple, cyan on foil)
+            enhanced_img = image_preprocess_service.apply_clahe_contrast_enhancement(img)
+
             ocr_engine = self.get_ocr()
-            # Run PaddleOCR inference (DBNet polygon detection + CRNN text recognition)
-            result = ocr_engine.predict(img)
+            # Step 2: Run PaddleOCR multi-directional inference (DBNet polygon detection + CRNN text recognition)
+            result = ocr_engine.predict(enhanced_img)
 
             lines: List[str] = []
             confidences: List[float] = []

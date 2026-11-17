@@ -21,6 +21,33 @@ class ImagePreprocessService:
         b64_str = base64.b64encode(buffer).decode("utf-8")
         return f"data:image/jpeg;base64,{b64_str}"
 
+    def apply_clahe_contrast_enhancement(self, img: np.ndarray) -> np.ndarray:
+        """
+        Applies CLAHE (Contrast Limited Adaptive Histogram Equalization) in LAB color space.
+        Equalizes intense specular reflections on curved blister foil and pill bottles
+        while preserving chromatic hue so pink/purple/cyan ink stands out against silver foil.
+        """
+        if img is None:
+            return img
+
+        try:
+            # 1. Convert to LAB color space to separate lightness from color chromaticity
+            lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+            l, a, b = cv2.split(lab)
+
+            # 2. Apply CLAHE on L (lightness) channel
+            clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+            cl = clahe.apply(l)
+
+            # 3. Merge back and convert to BGR
+            enhanced_lab = cv2.merge((cl, a, b))
+            enhanced_bgr = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+
+            return enhanced_bgr
+        except Exception as e:
+            logger.warning(f"CLAHE contrast enhancement failed: {e}")
+            return img
+
     def preprocess_foil_strip(self, b64_img: str) -> str:
         """
         Applies CLAHE (Contrast Limited Adaptive Histogram Equalization),

@@ -8,6 +8,28 @@ logger = logging.getLogger(__name__)
 MEDLINE_CONNECT_URL = "https://connect.medlineplus.gov/service"
 RXNORM_CODE_SYSTEM = "2.16.840.1.113883.6.88"
 
+# Resilient fallback summaries for essential medicines when US NIH server has network timeouts
+OFFLINE_ESSENTIAL_SUMMARIES: Dict[str, Dict[str, str]] = {
+    "161": {
+        "title": "Acetaminophen (Paracetamol)",
+        "summary": "Acetaminophen is used to relieve mild to moderate pain from headaches, muscle aches, menstrual periods, colds and sore throats, toothaches, backaches, and to reduce fever.",
+        "url": "https://medlineplus.gov/druginfo/meds/a681004.html",
+        "source": "MedlinePlus Connect (U.S. National Library of Medicine)"
+    },
+    "1151": {
+        "title": "Ascorbic Acid (Vitamin C)",
+        "summary": "Ascorbic acid (vitamin C) is used to prevent or treat low levels of vitamin C in people who do not get enough of the vitamin from their diets. Most people who eat a normal diet do not need extra ascorbic acid.",
+        "url": "https://medlineplus.gov/druginfo/meds/a682583.html",
+        "source": "MedlinePlus Connect (U.S. National Library of Medicine)"
+    },
+    "723": {
+        "title": "Amoxicillin",
+        "summary": "Amoxicillin is used to treat certain infections caused by bacteria, such as pneumonia; bronchitis; and infections of the ears, nose, throat, urinary tract, and skin.",
+        "url": "https://medlineplus.gov/druginfo/meds/a685001.html",
+        "source": "MedlinePlus Connect (U.S. National Library of Medicine)"
+    }
+}
+
 class MedlinePlusService:
     def __init__(self, timeout: float = 10.0):
         self.timeout = timeout
@@ -53,6 +75,10 @@ class MedlinePlusService:
                         }
         except Exception as e:
             logger.warning(f"MedlinePlus Connect lookup failed for RxCUI '{rxcui}': {e}")
+
+        if rxcui in OFFLINE_ESSENTIAL_SUMMARIES:
+            logger.info(f"Using local cached MedlinePlus summary for RxCUI {rxcui}")
+            return OFFLINE_ESSENTIAL_SUMMARIES[rxcui]
 
         return None
 

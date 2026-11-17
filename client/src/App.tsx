@@ -7,14 +7,13 @@ import type {
   ClinicalSections
 } from './types';
 import { extractAllFields } from './ocr/fieldExtractor';
-import { runOcrPipeline } from './ocr/ocrEngine';
-import { type OcrProgress } from './ocr/tesseractService';
+import { runPaddleOcrPipeline, type OcrProgress } from './ocr/ocrEngine';
 import { lookupMedicine } from './services/api';
 import { saveScanRecord } from './db';
 
 import { Navbar } from './components/Navbar';
 import { HomeScreen } from './components/HomeScreen';
-import { CaptureScreen } from './components/CaptureScreen';
+import { CaptureScreen, type ProcessedOcrData } from './components/CaptureScreen';
 import { OcrProgressScreen } from './components/OcrProgressScreen';
 import { ConfirmScreen } from './components/ConfirmScreen';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -61,53 +60,54 @@ export function App() {
     setSavedScanId(null);
   };
 
-  // Image selected -> run OCR
-  const handleImageSelected = async (primary: string, secondary?: string) => {
+  // PaddleOCR backend completes inference directly from CaptureScreen
+  const handleCaptureCompleted = (
+    primary: string,
+    ocrData: ProcessedOcrData,
+    secondary?: string
+  ) => {
     setCapturedPhoto(primary);
     setSecondaryPhoto(secondary);
-    setCurrentStep('ocr_running');
+    setActiveEngineUsed(ocrData.engine || 'paddleocr');
+    setRawOcrText(ocrData.text);
+    setOcrConfidence(ocrData.confidence);
 
-    try {
-      // Run unified OCR pipeline (PaddleOCR preferred with automatic local fallback)
-      const ocrRes = await runOcrPipeline(primary, preferredOcrEngine, (p) => setOcrProgress(p));
-      let combinedText = ocrRes.text;
-      let combinedQr = ocrRes.qrData;
-      setActiveEngineUsed(ocrRes.engine);
+    // Extract fields with regex, GS1 QR parsing, and fuzzy salt matching
+    const extracted = extractAllFields(ocrData.text, ocrData.confidence, ocrData.qrData);
+    setConfirmedFields({
+      brand: extracted.brand,
+      generic_name: extracted.generic_name,
+      strength: extracted.strength,
+      form: extracted.form,
+      manufacturer: extracted.manufacturer,
+      batch: extracted.batch,
+      mfg_date: extracted.mfg_date,
+      expiry: extracted.expiry,
+    });
+    setExpiryStatus(extracted.expiry_status);
 
-      // If secondary edge image was uploaded, run OCR on it to catch embossed EXP/BATCH
-      if (secondary) {
-        try {
-          const secRes = await runOcrPipeline(secondary, preferredOcrEngine);
-          combinedText += '\n' + secRes.text;
-          if (secRes.qrData && !combinedQr) combinedQr = secRes.qrData;
-        } catch (e) {
-          console.warn('Edge image OCR skipped:', e);
-        }
-      }
+    setCurrentStep('confirming');
+  };
 
-      setRawOcrText(combinedText);
-      setOcrConfidence(ocrRes.confidence);
-
-      // Extract fields with regex, GS1 QR parsing, and fuzzy salt matching
-      const extracted = extractAllFields(combinedText, ocrRes.confidence, combinedQr);
-      setConfirmedFields({
-        brand: extracted.brand,
-        generic_name: extracted.generic_name,
-        strength: extracted.strength,
-        form: extracted.form,
-        manufacturer: extracted.manufacturer,
-        batch: extracted.batch,
-        mfg_date: extracted.mfg_date,
-        expiry: extracted.expiry,
-      });
-      setExpiryStatus(extracted.expiry_status);
-
-      setCurrentStep('confirming');
-    } catch (err: any) {
-      console.error('OCR failed:', err);
-      // Even if OCR has error, allow user to enter manually on confirm screen
-      setCurrentStep('confirming');
-    }
+  // Fallback if user prefers to enter medicine details manually without OCR
+  const handleManualEntryFallback = (primary: string, secondary?: string) => {
+    setCapturedPhoto(primary);
+    setSecondaryPhoto(secondary);
+    setActiveEngineUsed('manual');
+    setRawOcrText('');
+    setOcrConfidence(0);
+    setConfirmedFields({
+      brand: '',
+      generic_name: '',
+      strength: '',
+      form: '',
+      manufacturer: '',
+      batch: '',
+      mfg_date: '',
+      expiry: '',
+    });
+    setExpiryStatus('unknown');
+    setCurrentStep('confirming');
   };
 
   // User confirmed/edited fields -> trigger backend lookup
@@ -210,18 +210,12 @@ export function App() {
       {/* Active Flow Views */}
       {currentStep === 'capturing' && (
         <CaptureScreen
-          onImageSelected={handleImageSelected}
+          onCaptureCompleted={handleCaptureCompleted}
+          onManualEntryFallback={handleManualEntryFallback}
           onCancel={() => {
             setCurrentStep('main');
             setCurrentTab('home');
           }}
-        />
-      )}
-
-      {currentStep === 'ocr_running' && (
-        <OcrProgressScreen
-          progress={ocrProgress.progress}
-          statusText={ocrProgress.status}
         />
       )}
 

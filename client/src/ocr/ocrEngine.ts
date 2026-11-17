@@ -1,49 +1,57 @@
-import { performOcr as performClientOcr, type OcrProgress } from './tesseractService';
 import { processPaddleOcr } from '../services/api';
-import { preprocessMedicineImage } from './imagePreprocess';
+import { compressMedicineImage } from '../utils/imageCompress';
 
-export interface UnifiedOcrResult {
-  text: string;
-  confidence: number;
-  engine: 'paddleocr' | 'tesseract';
-  qrData?: string;
+export interface OcrProgress {
+  progress: number;
+  status: string;
 }
 
-export async function runOcrPipeline(
+export interface PaddleOcrResult {
+  text: string;
+  confidence: number;
+  engine: 'paddleocr';
+  qrData?: string;
+  compressedImage: string;
+  originalSizeKb: number;
+  compressedSizeKb: number;
+}
+
+/**
+ * Runs the production PaddleOCR deep-learning pipeline:
+ * 1. Slightly compresses and scales image client-side to preserve battery, speed, and sharp packaging font contours.
+ * 2. Scans for any embedded GS1 / 2D DataMatrix code in-memory.
+ * 3. Sends compressed payload via POST /ocr/process to the FastAPI backend.
+ * 4. Backend PaddleOCR runs DBNet (polygonal text detection) + CRNN (recurrent recognition)
+ *    to read curved pill bottles, reflective blister foil, and rotated packaging.
+ */
+export async function runPaddleOcrPipeline(
   imageDataUrl: string,
-  preferredEngine: 'paddleocr' | 'tesseract' = 'paddleocr',
   onProgress?: (p: OcrProgress) => void
-): Promise<UnifiedOcrResult> {
-  // 1. Always run on-device QR scanner and dynamic contrast normalization first
-  onProgress?.({ progress: 15, status: 'Scanning for packaging QR/GS1 DataMatrix codes...' });
-  const preprocessed = await preprocessMedicineImage(imageDataUrl);
-  const qrData = preprocessed.qrData;
+): Promise<PaddleOcrResult> {
+  // Step 1: Client-side compression & optional QR check
+  onProgress?.({ progress: 20, status: 'Optimizing and compressing packaging image...' });
+  const compressionResult = await compressMedicineImage(imageDataUrl, 1600, 0.85);
 
-  // 2. If user preferred or defaulted to PaddleOCR, attempt high-accuracy server inference
-  if (preferredEngine === 'paddleocr') {
-    try {
-      onProgress?.({ progress: 40, status: 'Running PaddleOCR neural text detection (curved foil model)...' });
-      const paddleRes = await processPaddleOcr(preprocessed.enhancedFull);
+  // Step 2: Transmit to FastAPI PaddleOCR backend
+  onProgress?.({
+    progress: 50,
+    status: `Sending ${compressionResult.compressedSizeEstimateKb}KB to PaddleOCR neural engine...`,
+  });
 
-      onProgress?.({ progress: 100, status: 'PaddleOCR scene recognition complete' });
-      return {
-        text: paddleRes.text,
-        confidence: paddleRes.confidence,
-        engine: 'paddleocr',
-        qrData
-      };
-    } catch (paddleError) {
-      console.warn('PaddleOCR server unavailable, seamlessly falling back to local Tesseract.js:', paddleError);
-      onProgress?.({ progress: 50, status: 'Falling back to on-device Tesseract.js engine...' });
-    }
-  }
+  const paddleRes = await processPaddleOcr(compressionResult.compressed);
 
-  // 3. Fallback to client-side Tesseract.js with multi-crop voting
-  const localRes = await performClientOcr(imageDataUrl, onProgress);
+  onProgress?.({
+    progress: 100,
+    status: 'PaddleOCR deep-learning extraction complete',
+  });
+
   return {
-    text: localRes.text,
-    confidence: localRes.confidence,
-    engine: 'tesseract',
-    qrData: qrData || localRes.qrData
+    text: paddleRes.text,
+    confidence: paddleRes.confidence,
+    engine: 'paddleocr',
+    qrData: compressionResult.qrData,
+    compressedImage: compressionResult.compressed,
+    originalSizeKb: compressionResult.originalSizeEstimateKb,
+    compressedSizeKb: compressionResult.compressedSizeEstimateKb,
   };
 }

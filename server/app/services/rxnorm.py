@@ -19,6 +19,25 @@ GLOBAL_SYNONYMS: Dict[str, List[str]] = {
     "amoxicillin": ["amoxicillin", "amoxil"],
 }
 
+# Resilient local cache for essential medicines when US NIH has network/SSL timeouts
+OFFLINE_ESSENTIAL_DRUGS: Dict[str, Tuple[str, str]] = {
+    "paracetamol": ("161", "Acetaminophen"),
+    "acetaminophen": ("161", "Acetaminophen"),
+    "ascorbic acid": ("1151", "Ascorbic Acid"),
+    "vitamin c": ("1151", "Ascorbic Acid"),
+    "amoxicillin": ("723", "Amoxicillin"),
+    "ibuprofen": ("5640", "Ibuprofen"),
+    "cetirizine": ("20610", "Cetirizine"),
+    "pantoprazole": ("40790", "Pantoprazole"),
+    "metformin": ("6809", "Metformin"),
+    "atorvastatin": ("83367", "Atorvastatin"),
+    "azithromycin": ("18631", "Azithromycin"),
+    "ciprofloxacin": ("2551", "Ciprofloxacin"),
+    "salbutamol": ("435", "Albuterol"),
+    "albuterol": ("435", "Albuterol"),
+    "furosemide": ("4603", "Furosemide"),
+}
+
 class RxNormService:
     def __init__(self, timeout: float = 8.0):
         self.timeout = timeout
@@ -63,6 +82,13 @@ class RxNormService:
         except Exception as e:
             logger.warning(f"RxNorm lookup failed for '{clean_name}': {e}")
             
+        # Resilient fallback if NIH REST server is unreachable or timed out
+        clean_lower = clean_name.lower().strip()
+        if clean_lower in OFFLINE_ESSENTIAL_DRUGS:
+            rxcui, canon = OFFLINE_ESSENTIAL_DRUGS[clean_lower]
+            logger.info(f"Using local cached RxNorm definition for '{clean_name}': RxCUI {rxcui} ({canon})")
+            return rxcui, canon
+
         return None, None
 
     async def get_drug_properties(self, rxcui: str) -> Dict[str, Any]:

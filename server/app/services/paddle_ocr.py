@@ -14,9 +14,9 @@ class PaddleOCRService:
         if self._ocr is None:
             try:
                 from paddleocr import PaddleOCR
-                logger.info("Initializing PaddleOCR engine with use_angle_cls=True, lang='en'...")
-                # Initialize PaddleOCR with direction classifier enabled
-                self._ocr = PaddleOCR(use_angle_cls=True, lang='en')
+                logger.info("Initializing PaddleOCR engine with use_textline_orientation=True, lang='en'...")
+                # Initialize PaddleOCR with orientation detection enabled
+                self._ocr = PaddleOCR(use_textline_orientation=True, lang='en')
             except Exception as e:
                 logger.error(f"Failed to load PaddleOCR model: {e}")
                 raise RuntimeError(f"PaddleOCR engine could not be initialized: {e}")
@@ -24,7 +24,7 @@ class PaddleOCRService:
 
     def process_image(self, b64_image: str) -> Dict[str, Any]:
         """
-        Runs PaddleOCR text detection and recognition on an input image.
+        Runs PaddleOCR text detection (DBNet) and recognition (CRNN) on an input image.
         In-memory processing only: image is decoded to numpy, processed, and discarded.
         Never written to disk or logged.
         """
@@ -39,22 +39,32 @@ class PaddleOCRService:
                 raise ValueError("Could not decode image from provided data.")
 
             ocr_engine = self.get_ocr()
-            # Run PaddleOCR inference
-            result = ocr_engine.ocr(img, cls=True)
+            # Run PaddleOCR inference (DBNet polygon detection + CRNN text recognition)
+            result = ocr_engine.predict(img)
 
             lines: List[str] = []
             confidences: List[float] = []
 
-            # PaddleOCR returns list of lines: [ [ [box_coords], (text, score) ], ... ]
-            if result and len(result) > 0 and result[0]:
-                for line in result[0]:
-                    if line and len(line) >= 2:
-                        text_score = line[1]
-                        text = str(text_score[0]).strip()
-                        score = float(text_score[1])
-                        if text:
-                            lines.append(text)
-                            confidences.append(score)
+            # Handle both PaddleX pipeline dict output and classic nested list output
+            if isinstance(result, list) and len(result) > 0:
+                first_item = result[0]
+                if isinstance(first_item, dict) and "rec_texts" in first_item:
+                    texts = first_item.get("rec_texts", [])
+                    scores = first_item.get("rec_scores", [])
+                    for t, s in zip(texts, scores):
+                        t_str = str(t).strip()
+                        if t_str:
+                            lines.append(t_str)
+                            confidences.append(float(s))
+                elif isinstance(first_item, list):
+                    for line in first_item:
+                        if line and len(line) >= 2:
+                            text_score = line[1]
+                            text = str(text_score[0]).strip()
+                            score = float(text_score[1])
+                            if text:
+                                lines.append(text)
+                                confidences.append(score)
 
             full_text = "\n".join(lines)
             avg_conf = int(np.mean(confidences) * 100) if confidences else 0

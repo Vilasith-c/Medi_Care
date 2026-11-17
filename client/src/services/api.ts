@@ -2,6 +2,29 @@ import type { ClinicalSections, LookupResult } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
+export async function processPaddleOcr(imageDataUrl: string): Promise<{
+  text: string;
+  confidence: number;
+  engine: string;
+}> {
+  const response = await fetch(`${API_BASE_URL}/ocr/process`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      image: imageDataUrl,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `PaddleOCR server error (${response.status})`);
+  }
+
+  return await response.json();
+}
+
 export async function lookupMedicine(params: {
   generic_name: string;
   brand?: string;

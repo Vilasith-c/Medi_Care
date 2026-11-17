@@ -7,6 +7,7 @@ interface ConfirmScreenProps {
   initialFields: ConfirmedFields;
   initialExpiryStatus: ExpiryStatus;
   ocrConfidence: number;
+  ocrEngine?: string;
   onConfirm: (fields: ConfirmedFields, expiryStatus: ExpiryStatus) => void;
   onCancel: () => void;
 }
@@ -16,6 +17,7 @@ export const ConfirmScreen: React.FC<ConfirmScreenProps> = ({
   initialFields,
   initialExpiryStatus,
   ocrConfidence,
+  ocrEngine = 'PaddleOCR',
   onConfirm,
   onCancel,
 }) => {
@@ -73,8 +75,9 @@ export const ConfirmScreen: React.FC<ConfirmScreenProps> = ({
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h2 className="text-base font-semibold text-slate-900">Confirm Medicine Details</h2>
-        <div className="text-xs font-medium px-2 py-0.5 bg-slate-100 text-slate-600 rounded">
-          {ocrConfidence}% OCR
+        <div className="text-xs font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          {ocrEngine === 'paddleocr' ? 'PaddleOCR' : 'Tesseract'} ({ocrConfidence}%)
         </div>
       </div>
 

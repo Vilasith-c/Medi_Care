@@ -53,3 +53,11 @@ class PreprocessRequest(BaseModel):
 
 class PreprocessResponse(BaseModel):
     processed_image: str = Field(..., description="CLAHE enhanced base64 image")
+
+class OcrProcessRequest(BaseModel):
+    image: str = Field(..., description="Base64 encoded medicine packaging image")
+
+class OcrProcessResponse(BaseModel):
+    text: str = Field(..., description="Extracted OCR text lines")
+    confidence: int = Field(..., description="Average OCR confidence percentage")
+    engine: str = Field("paddleocr", description="OCR engine utilized")

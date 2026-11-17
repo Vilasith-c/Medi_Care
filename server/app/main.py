@@ -11,6 +11,8 @@ from app.models.schemas import (
     TranslateResponse,
     PreprocessRequest,
     PreprocessResponse,
+    OcrProcessRequest,
+    OcrProcessResponse,
     VerificationStatus,
     SourceCitation,
 )
@@ -21,6 +23,7 @@ from app.services.validator import validator_service
 from app.services.summarizer import summarizer_service
 from app.services.translator import translator_service
 from app.services.image_preprocess import image_preprocess_service
+from app.services.paddle_ocr import paddle_ocr_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("medi_care")
@@ -155,6 +158,27 @@ async def preprocess_image(req: PreprocessRequest):
     """
     processed = image_preprocess_service.preprocess_foil_strip(req.image)
     return PreprocessResponse(processed_image=processed)
+
+@app.post(f"{settings.API_V1_STR}/ocr/process", response_model=OcrProcessResponse)
+async def process_ocr(req: OcrProcessRequest):
+    """
+    PaddleOCR text detection and recognition endpoint.
+    Optimized for photographed scene text, curved blister foils, and rotated print.
+    Privacy guarantee: In-memory processing only; raw image data is immediately discarded.
+    """
+    try:
+        res = paddle_ocr_service.process_image(req.image)
+        return OcrProcessResponse(
+            text=res["text"],
+            confidence=res["confidence"],
+            engine=res["engine"]
+        )
+    except Exception as e:
+        logger.error(f"PaddleOCR processing error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"PaddleOCR processing error: {str(e)}"
+        )
 
 @app.post(f"{settings.API_V1_STR}/translate", response_model=TranslateResponse)
 async def translate_to_telugu(req: TranslateRequest):

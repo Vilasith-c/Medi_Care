@@ -1,5 +1,8 @@
 import pytest
 import asyncio
+import io
+import base64
+from PIL import Image, ImageDraw
 from fastapi.testclient import TestClient
 from app.main import app
 from app.services.validator import validator_service
@@ -15,6 +18,33 @@ def test_health_endpoint():
     data = response.json()
     assert data["status"] == "ok"
     assert "Medi-Care API" in data["service"]
+
+def test_paddleocr_endpoint_synthetic_image():
+    """
+    Test PaddleOCR backend inference on a synthetic test medicine label image.
+    Generates a high-contrast label image and runs through PaddleOCR endpoint.
+    """
+    # Create synthetic test image
+    img = Image.new("RGB", (400, 100), color=(255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    draw.text((20, 30), "Vitamin C Tablets IP 500 mg", fill=(0, 0, 0))
+    draw.text((20, 60), "Ascorbic Acid IP 500mg", fill=(0, 0, 0))
+
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    b64_img = f"data:image/jpeg;base64,{base64.b64encode(buf.getvalue()).decode('utf-8')}"
+
+    response = client.post(
+        "/api/v1/ocr/process",
+        json={"image": b64_img}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["engine"] == "paddleocr"
+    assert len(data["text"]) > 0
+    # Text should capture keywords
+    upper_text = data["text"].upper()
+    assert "VITAMIN" in upper_text or "TABLET" in upper_text or "500" in upper_text or "ACID" in upper_text
 
 def test_paracetamol_live_lookup():
     """

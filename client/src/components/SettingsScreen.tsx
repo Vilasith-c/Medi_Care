@@ -1,16 +1,27 @@
 import React, { useState } from 'react';
-import { Languages, Trash2, Info, Shield, MessageSquarePlus, Check } from 'lucide-react';
+import { Languages, Trash2, Shield, MessageSquarePlus, Check, Cpu, Sparkles } from 'lucide-react';
 import { clearAllScanRecords } from '../db';
 
 interface SettingsScreenProps {
   onLanguageChanged?: (lang: 'en' | 'te') => void;
+  preferredOcr?: 'paddleocr' | 'tesseract';
+  onOcrEngineChanged?: (engine: 'paddleocr' | 'tesseract') => void;
 }
 
-export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
+export const SettingsScreen: React.FC<SettingsScreenProps> = ({
+  preferredOcr = 'paddleocr',
+  onOcrEngineChanged,
+}) => {
   const [defaultLang, setDefaultLang] = useState<'en' | 'te'>('en');
+  const [ocrEngine, setOcrEngine] = useState<'paddleocr' | 'tesseract'>(preferredOcr);
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
   const [translationReport, setTranslationReport] = useState('');
   const [isClearing, setIsClearing] = useState(false);
+
+  const handleSelectOcr = (engine: 'paddleocr' | 'tesseract') => {
+    setOcrEngine(engine);
+    onOcrEngineChanged?.(engine);
+  };
 
   const handleClearHistory = async () => {
     if (confirm('Clear all saved scan history from this device? This cannot be undone.')) {
@@ -36,6 +47,65 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
       </div>
 
       <div className="p-4 space-y-4 text-xs">
+        {/* OCR Engine Preference */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-emerald-600" /> OCR Engine Preference
+            </h3>
+            <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-semibold border border-emerald-200">
+              Active
+            </span>
+          </div>
+          <p className="text-slate-500 text-[11px] leading-relaxed">
+            Select which OCR recognition model processes packaging photos:
+          </p>
+          <div className="space-y-2">
+            <button
+              onClick={() => handleSelectOcr('paddleocr')}
+              className={`w-full p-3 rounded-xl border text-left transition-all flex items-start gap-3 ${
+                ocrEngine === 'paddleocr'
+                  ? 'bg-emerald-50/70 border-emerald-500 text-emerald-950 shadow-sm'
+                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <div className="w-4 h-4 mt-0.5 rounded-full border flex items-center justify-center shrink-0 border-emerald-600">
+                {ocrEngine === 'paddleocr' && <div className="w-2 h-2 rounded-full bg-emerald-600" />}
+              </div>
+              <div>
+                <div className="font-bold flex items-center gap-1.5 text-xs text-slate-900">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  PaddleOCR (Recommended)
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                  High-accuracy scene text recognition with angle classification. Excels at curved blister foil, grey-on-silver print, and reflections. (In-memory privacy guaranteed).
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => handleSelectOcr('tesseract')}
+              className={`w-full p-3 rounded-xl border text-left transition-all flex items-start gap-3 ${
+                ocrEngine === 'tesseract'
+                  ? 'bg-emerald-50/70 border-emerald-500 text-emerald-950 shadow-sm'
+                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <div className="w-4 h-4 mt-0.5 rounded-full border flex items-center justify-center shrink-0 border-emerald-600">
+                {ocrEngine === 'tesseract' && <div className="w-2 h-2 rounded-full bg-emerald-600" />}
+              </div>
+              <div>
+                <div className="font-bold text-xs text-slate-900">
+                  Tesseract.js (On-Device Local Only)
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                  Runs directly inside the browser. Best for high-contrast boxes and flat paper leaflets.
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+
         {/* Language Preference */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
           <h3 className="font-semibold text-slate-900 flex items-center gap-2">
@@ -120,10 +190,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
           <h3 className="font-semibold text-slate-900 text-xs flex items-center gap-1.5 mb-2">
             <Shield className="w-3.5 h-3.5 text-emerald-600" /> Medi-Care v0 Architecture
           </h3>
-          <p>• <strong>Front end:</strong> React PWA + Dexie.js + Tesseract.js (On-Device OCR)</p>
+          <p>• <strong>Primary OCR Engine:</strong> PaddleOCR with direction classifier & angle rectification</p>
+          <p>• <strong>Offline Fallback:</strong> Tesseract.js with client-side CLAHE contrast boost</p>
           <p>• <strong>Clinical Pipeline:</strong> NIH RxNorm + MedlinePlus Connect API + Tavily</p>
-          <p>• <strong>Safety Engine:</strong> Zero dosage instructions, strict negation preservation, automatic verbatim excerpt fallback</p>
-          <p>• <strong>Telugu Engine:</strong> IndicTrans2 architecture with custom pharmaceutical glossary</p>
+          <p>• <strong>Fuzzy Matcher:</strong> Levenshtein & Indian Pharmacopoeia (IP) salt normalization</p>
+          <p>• <strong>Telugu Engine:</strong> IndicTrans2 architecture with pharmaceutical glossary</p>
         </div>
       </div>
     </div>

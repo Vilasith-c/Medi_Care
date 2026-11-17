@@ -7,7 +7,8 @@ import type {
   ClinicalSections
 } from './types';
 import { extractAllFields } from './ocr/fieldExtractor';
-import { performOcr, type OcrProgress } from './ocr/tesseractService';
+import { runOcrPipeline } from './ocr/ocrEngine';
+import { type OcrProgress } from './ocr/tesseractService';
 import { lookupMedicine } from './services/api';
 import { saveScanRecord } from './db';
 
@@ -48,6 +49,9 @@ export function App() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [savedScanId, setSavedScanId] = useState<number | null>(null);
 
+  const [preferredOcrEngine, setPreferredOcrEngine] = useState<'paddleocr' | 'tesseract'>('paddleocr');
+  const [activeEngineUsed, setActiveEngineUsed] = useState<string>('paddleocr');
+
   // Start new scan flow
   const handleStartScan = () => {
     setCurrentTab('scan');
@@ -64,15 +68,16 @@ export function App() {
     setCurrentStep('ocr_running');
 
     try {
-      // Run Tesseract.js with preprocessing, CLAHE simulation, and QR scan
-      const ocrRes = await performOcr(primary, (p) => setOcrProgress(p));
+      // Run unified OCR pipeline (PaddleOCR preferred with automatic local fallback)
+      const ocrRes = await runOcrPipeline(primary, preferredOcrEngine, (p) => setOcrProgress(p));
       let combinedText = ocrRes.text;
       let combinedQr = ocrRes.qrData;
+      setActiveEngineUsed(ocrRes.engine);
 
       // If secondary edge image was uploaded, run OCR on it to catch embossed EXP/BATCH
       if (secondary) {
         try {
-          const secRes = await performOcr(secondary);
+          const secRes = await runOcrPipeline(secondary, preferredOcrEngine);
           combinedText += '\n' + secRes.text;
           if (secRes.qrData && !combinedQr) combinedQr = secRes.qrData;
         } catch (e) {
@@ -232,6 +237,7 @@ export function App() {
             initialFields={confirmedFields}
             initialExpiryStatus={expiryStatus}
             ocrConfidence={ocrConfidence}
+            ocrEngine={activeEngineUsed}
             onConfirm={handleConfirmFields}
             onCancel={() => {
               setCurrentStep('main');
